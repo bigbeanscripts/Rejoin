@@ -1,0 +1,169 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local userid = player.UserId
+local username = player.Name
+
+local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/bigbeanscripts/Pet-Warriors/refs/heads/main/test"))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/SenhorLDS/ProjectLDSHUB/refs/heads/main/Anti%20AFK"))()
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+local Window, Tabs
+
+local function BuildUI()
+    SaveManager:SetLibrary(Library)
+    InterfaceManager:SetLibrary(Library)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes{}
+    InterfaceManager:SetFolder("FluentScriptHub")
+    SaveManager:SetFolder("FluentScriptHub/Auto Rejoin")
+
+    InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+    SaveManager:BuildConfigSection(Tabs.Settings)
+
+    Window:SelectTab(1)
+    SaveManager:LoadAutoloadConfig()
+    
+    local TeleportService = game:GetService("TeleportService")
+    local HttpService = game:GetService("HttpService")
+
+    -- Public Server Section
+    local PublicServerSection = Tabs.Rejoin:AddSection("Public Server")
+
+    local publicDelayInput = PublicServerSection:AddInput("PublicRejoinDelay", {
+        Title = "Delay (Seconds)",
+        Default = "3600",
+        Numeric = true,
+    })
+
+    local AutoRejoinPublicToggle = PublicServerSection:AddToggle("AutoRejoinPublic", {
+        Title = "Auto Rejoin",
+        Description = "Automatically rejoins a public server with the least players.",
+        Default = false,
+        Callback = function(enabled)
+            _G.AutoRejoinPublicEnabled = enabled
+            if _G.AutoRejoinPublicThread then
+                task.cancel(_G.AutoRejoinPublicThread)
+                _G.AutoRejoinPublicThread = nil
+            end
+            if enabled then
+                _G.AutoRejoinPublicThread = task.spawn(function()
+                    while _G.AutoRejoinPublicEnabled do
+                        local delay = tonumber(publicDelayInput.Value) or 10
+                        task.wait(delay)
+                        -- Join public server with least players
+                        local placeId = game.PlaceId
+                        local cursor = ""
+                        local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+                        local servers = {}
+                        while true do
+                            local reqUrl = url .. (cursor ~= "" and ("&cursor=" .. cursor) or "")
+                            local success, response = pcall(function()
+                                return HttpService:JSONDecode(game:HttpGet(reqUrl))
+                            end)
+                            if not success or not response or not response.data then break end
+                            for _, server in ipairs(response.data) do
+                                if server.playing < server.maxPlayers then
+                                    table.insert(servers, server)
+                                end
+                            end
+                            if not response.nextPageCursor then break end
+                            cursor = response.nextPageCursor
+                        end
+                        table.sort(servers, function(a, b) return a.playing < b.playing end)
+                        for _, server in ipairs(servers) do
+                            if server.id ~= game.JobId then
+                                TeleportService:TeleportToPlaceInstance(placeId, server.id, Players.LocalPlayer)
+                                break
+                            end
+                        end
+                        task.wait(2)
+                    end
+                end)
+            end
+        end
+    })
+
+    -- Private Server Section
+    local PrivateServerSection = Tabs.Rejoin:AddSection("Private Server")
+
+    PrivateServerSection:AddParagraph("Note",{
+        Title = "How to Get Private Server ID",
+        Content = "To join a private server, copy the Roblox invite link and paste the ID below.\nExample: https://www.roblox.com/share?code=12345&type=Server\nThe ID is: 12345\nEnter 12345 in the 'Private Server ID' input. Or if your lazy, just paste the whole link in the input."
+    })
+
+    local privateServerIdInput = PrivateServerSection:AddInput("PrivateServerID", {
+        Title = "Private Server ID",
+        Default = "",
+        Description = "Paste the private server ID here."
+    })
+
+    local privateDelayInput = PrivateServerSection:AddInput("PrivateRejoinDelay", {
+        Title = "Rejoin Delay (Seconds)",
+        Default = "3600",
+        Numeric = true,
+    })
+
+    local function extractPrivateServerId(input)
+        -- If input is a full URL, extract the code
+        local code = tostring(input)
+        local match = code:match("code=([%w]+)")
+        if match then
+            return match
+        end
+        return code
+    end
+
+    local AutoRejoinPrivateToggle = PrivateServerSection:AddToggle("AutoRejoinPrivate", {
+        Title = "Auto Rejoin",
+        Description = "Automatically rejoins the private server.",
+        Default = false,
+        Callback = function(enabled)
+            _G.AutoRejoinPrivateEnabled = enabled
+            if _G.AutoRejoinPrivateThread then
+                task.cancel(_G.AutoRejoinPrivateThread)
+                _G.AutoRejoinPrivateThread = nil
+            end
+            if enabled then
+                _G.AutoRejoinPrivateThread = task.spawn(function()
+                    while _G.AutoRejoinPrivateEnabled do
+                        local delay = tonumber(privateDelayInput.Value) or 10
+                        local rawInput = tostring(privateServerIdInput.Value)
+                        local accessCode = extractPrivateServerId(rawInput)
+                        task.wait(delay)
+                        if accessCode ~= "" then
+                            local teleportOptions = Instance.new("TeleportOptions")
+                            teleportOptions.ReservedServerAccessCode = accessCode
+                            TeleportService:Teleport(game.PlaceId, Players.LocalPlayer, teleportOptions)
+                        end
+                        task.wait(2)
+                    end
+                end)
+            end
+        end
+    })
+end
+
+task.spawn(function()
+    if not game:IsLoaded() then game.Loaded:Wait() end
+
+    Window = Library:Window{
+        Title = "Auto Rejoin",
+        SubTitle = "By Duckie",
+        TabWidth = 160,
+        Size = UDim2.fromOffset(580, 460),
+        Resize = false,
+        Theme = "Darker",
+        MinimizeKey = Enum.KeyCode.LeftShift
+    }
+
+    Tabs = {
+        Settings = Window:AddTab({ Title = "Settings", Icon = "settings" }),
+        Rejoin = Window:AddTab({ Title = "Rejoin", Icon = "recycle" }),
+    }
+
+    BuildUI()
+end)
