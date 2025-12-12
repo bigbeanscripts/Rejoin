@@ -10,26 +10,12 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/SenhorLDS/ProjectLDSH
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 
 local Window, Tabs
 
 local function BuildUI()
-    SaveManager:SetLibrary(Library)
-    InterfaceManager:SetLibrary(Library)
-    SaveManager:IgnoreThemeSettings()
-    SaveManager:SetIgnoreIndexes{}
-    InterfaceManager:SetFolder("FluentScriptHub")
-    SaveManager:SetFolder("FluentScriptHub/Auto Rejoin")
-
-    InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-    SaveManager:BuildConfigSection(Tabs.Settings)
-
-    Window:SelectTab(1)
-    SaveManager:LoadAutoloadConfig()
-    
-    local TeleportService = game:GetService("TeleportService")
-    local HttpService = game:GetService("HttpService")
-
     -- Public Server Section
     local PublicServerSection = Tabs.Rejoin:AddSection("Public Server")
 
@@ -52,7 +38,7 @@ local function BuildUI()
             if enabled then
                 _G.AutoRejoinPublicThread = task.spawn(function()
                     while _G.AutoRejoinPublicEnabled do
-                        local delay = tonumber(publicDelayInput.Value) or 10
+                        local delay = tonumber(publicDelayInput.Value) or 3600
                         task.wait(delay)
                         -- Join public server with least players
                         local placeId = game.PlaceId
@@ -90,7 +76,7 @@ local function BuildUI()
     -- Private Server Section
     local PrivateServerSection = Tabs.Rejoin:AddSection("Private Server")
 
-    PrivateServerSection:AddParagraph("Note",{
+    PrivateServerSection:AddParagraph("Note", {
         Title = "How to Get Private Server ID",
         Content = "To join a private server, copy the Roblox invite link and paste the ID below.\nExample: https://www.roblox.com/share?code=12345&type=Server\nThe ID is: 12345\nEnter 12345 in the 'Private Server ID' input. Or if your lazy, just paste the whole link in the input."
     })
@@ -98,7 +84,9 @@ local function BuildUI()
     local privateServerIdInput = PrivateServerSection:AddInput("PrivateServerID", {
         Title = "Private Server ID",
         Default = "",
-        Description = "Paste the private server ID here."
+        Description = "Paste the private server ID here.",
+        Numeric = false,
+        Finished = false
     })
 
     local privateDelayInput = PrivateServerSection:AddInput("PrivateRejoinDelay", {
@@ -130,7 +118,7 @@ local function BuildUI()
             if enabled then
                 _G.AutoRejoinPrivateThread = task.spawn(function()
                     while _G.AutoRejoinPrivateEnabled do
-                        local delay = tonumber(privateDelayInput.Value) or 10
+                        local delay = tonumber(privateDelayInput.Value) or 3600
                         local rawInput = tostring(privateServerIdInput.Value)
                         local accessCode = extractPrivateServerId(rawInput)
                         task.wait(delay)
@@ -145,12 +133,26 @@ local function BuildUI()
             end
         end
     })
+
+    -- Setup Save/Load System AFTER all UI elements are created
+    SaveManager:SetLibrary(Library)
+    InterfaceManager:SetLibrary(Library)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes({})
+    InterfaceManager:SetFolder("FluentScriptHub")
+    SaveManager:SetFolder("FluentScriptHub/AutoRejoin")
+
+    InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+    SaveManager:BuildConfigSection(Tabs.Settings)
+
+    Window:SelectTab(1)
+    SaveManager:LoadAutoloadConfig()
 end
 
 task.spawn(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
 
-    Window = Library:Window{
+    Window = Library:Window({
         Title = "Auto Rejoin",
         SubTitle = "By Duckie",
         TabWidth = 160,
@@ -158,7 +160,7 @@ task.spawn(function()
         Resize = false,
         Theme = "Darker",
         MinimizeKey = Enum.KeyCode.LeftShift
-    }
+    })
 
     Tabs = {
         Settings = Window:AddTab({ Title = "Settings", Icon = "settings" }),
